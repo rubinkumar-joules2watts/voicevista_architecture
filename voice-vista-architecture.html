@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voice Vista — System Architecture</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --text-primary:   #2C2C2A;
+  --text-secondary: #5F5E5A;
+  --text-tertiary:  #888780;
+  --border-light:   #DDDBD3;
+  --page-bg:        #F7F6F2;
+
+  --blue-bg:#E6F1FB;   --blue-bd:#85B7EB;   --blue-lbl:#185FA5;  --blue-chip:#B5D4F4;  --blue-ct:#042C53;
+  --green-bg:#E1F5EE;  --green-bd:#5DCAA5;  --green-lbl:#0F6E56; --green-chip:#9FE1CB; --green-ct:#04342C;
+  --purple-bg:#EEEDFE; --purple-bd:#AFA9EC; --purple-lbl:#534AB7;--purple-chip:#CECBF6;--purple-ct:#26215C;
+  --amber-bg:#FAEEDA;  --amber-bd:#EF9F27;  --amber-lbl:#854F0B; --amber-chip:#FAC775; --amber-ct:#412402;
+  --red-bg:#FAECE7;    --red-bd:#F0997B;    --red-lbl:#993C1D;   --red-chip:#F5C4B3;   --red-ct:#4A1B0C;
+  --sage-bg:#EAF3DE;   --sage-bd:#97C459;   --sage-lbl:#3B6D11;  --sage-chip:#C0DD97;  --sage-ct:#173404;
+  --stone-bg:#F1EFE8;  --stone-bd:#B4B2A9;  --stone-lbl:#5F5E5A; --stone-chip:#D3D1C7; --stone-ct:#2C2C2A;
+  --teal-bg:#E0F4F6;   --teal-bd:#4BBDCC;   --teal-lbl:#0C5F6B;  --teal-chip:#9FD9E0;  --teal-ct:#04303A;
+  --rose-bg:#FDE8F0;   --rose-bd:#E879A0;   --rose-lbl:#9D1E52;  --rose-chip:#F5B8D3;  --rose-ct:#4A0B26;
+  --indigo-bg:#EEF0FD; --indigo-bd:#8B92E0; --indigo-lbl:#3B44A8;--indigo-chip:#C4C8F2;--indigo-ct:#1A1F52;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+.chip   { display:inline-block; font-size:11px; font-weight:500; padding:2px 8px; border-radius:20px; letter-spacing:.02em; }
+.dot    { width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.lbl    { font-size:10.5px; font-weight:600; letter-spacing:.065em; text-transform:uppercase; margin-bottom:8px; }
+.sub    { font-size:11px; color:var(--text-secondary); }
+
+.card {
+  border-radius:12px; padding:12px 14px;
+  cursor:pointer;
+  transition: box-shadow .18s, transform .18s;
+  position:relative;
+}
+.card:hover  { box-shadow:0 3px 14px rgba(0,0,0,.10); transform:translateY(-1px); }
+.card.active { transform:translateY(-1px); }
+
+.pipe-wrap {
+  display:flex; align-items:stretch;
+  gap:0; height:38px; margin:0;
+}
+.pipe-col {
+  flex:1; display:flex; flex-direction:column; align-items:center;
+  position:relative;
+}
+.pipe-line {
+  width:1.5px; flex:1;
+  background:var(--border-light);
+  transition:background .25s;
+  margin:0 auto;
+}
+.pipe-line.lit { background: linear-gradient(180deg,#7F77DD,#1D9E75); }
+.pipe-lbl {
+  font-size:9.5px; color:var(--text-tertiary);
+  letter-spacing:.03em; white-space:nowrap;
+  text-align:center; line-height:1;
+  margin-bottom:2px;
+  max-width:150px; overflow:hidden; text-overflow:ellipsis;
+}
+.pipe-arrow { font-size:11px; color:var(--text-tertiary); line-height:1; }
+
+.panel {
+  display:none; border-radius:10px; padding:14px 16px;
+  margin-top:6px; border-top:2px dashed;
+  animation: slideDown .2s ease;
+  position:relative;
+}
+.panel.open { display:block; }
+@keyframes slideDown { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+
+.close-btn {
+  position:absolute; top:10px; right:12px;
+  font-size:11px; color:var(--text-tertiary);
+  cursor:pointer; background:rgba(0,0,0,.06);
+  border:none; border-radius:4px; padding:2px 8px; font-family:inherit;
+}
+.close-btn:hover { background:rgba(0,0,0,.12); }
+
+.d-item { border-radius:8px; padding:9px 11px; }
+.d-title { font-size:12px; font-weight:600; margin-bottom:3px; }
+.d-desc  { font-size:11px; line-height:1.45; }
+
+.flow-row {
+  display:flex; align-items:center; flex-wrap:wrap; gap:4px;
+  margin-top:10px; padding-top:9px; border-top:1px solid rgba(0,0,0,.07);
+}
+.fstep { font-size:11px; font-weight:500; border-radius:4px; padding:3px 9px; }
+.fsep  { font-size:11px; color:var(--text-tertiary); }
+
+.jlink {
+  display:inline-block; font-size:10.5px; border-radius:3px;
+  padding:2px 7px; border:1px solid; cursor:pointer;
+  transition:opacity .15s; margin:1px;
+}
+.jlink:hover { opacity:.7; }
+
+.ttag { font-size:10px; background:rgba(0,0,0,.06); border-radius:3px; padding:2px 7px; color:var(--text-secondary); letter-spacing:.02em; }
+.tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+
+.phase-divider { display:flex; align-items:center; gap:10px; margin:6px 0 0; }
+.phase-line    { flex:1; height:1px; background:var(--border-light); }
+.phase-badge   { font-size:10px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; padding:3px 10px; border-radius:20px; white-space:nowrap; }
+
+.g2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.g3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+.g4 { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.g5 { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+
+@media(max-width:680px){
+  .g2,.g3,.g4,.g5 { grid-template-columns:1fr 1fr !important; }
+}
+
+.wrap { padding:20px 18px 30px; max-width:880px; margin:0 auto; position:relative; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══════════ HEADER ══════════ -->
+<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+  <div>
+    <div style="font-size:20px;font-weight:500;color:var(--text-primary);margin-bottom:3px;">Voice Vista — System Architecture</div>
+    <div class="sub">AI-powered call intelligence platform &nbsp;·&nbsp; Click any layer to expand &nbsp;·&nbsp; Jump links connect related layers</div>
+  </div>
+  <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
+    <span class="chip" style="background:var(--stone-bg);color:var(--stone-lbl);">Actors</span>
+    <span class="chip" style="background:var(--blue-bg);color:var(--blue-lbl);">Frontend</span>
+    <span class="chip" style="background:var(--green-bg);color:var(--green-lbl);">Backend</span>
+    <span class="chip" style="background:var(--purple-bg);color:var(--purple-lbl);">Audio Ingestion</span>
+    <span class="chip" style="background:var(--amber-bg);color:var(--amber-lbl);">AI &amp; Analytics</span>
+    <span class="chip" style="background:var(--red-bg);color:var(--red-lbl);">Processing</span>
+    <span class="chip" style="background:var(--teal-bg);color:var(--teal-lbl);">Storage</span>
+    <span class="chip" style="background:var(--sage-bg);color:var(--sage-lbl);">Notifications</span>
+    <span class="chip" style="background:var(--rose-bg);color:var(--rose-lbl);">Security</span>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════ 1. ACTORS ══════════════════════════ -->
+<div class="card" id="c-actors" onclick="tog('actors')"
+  style="background:var(--stone-bg);border:.5px solid var(--stone-bd);">
+  <div class="lbl" style="color:var(--stone-lbl);">Actors</div>
+  <div class="g5">
+    <div style="background:var(--stone-chip);border-radius:8px;padding:8px;text-align:center;">
+      <div style="font-size:18px;margin-bottom:3px;">👤</div>
+      <div style="font-size:12px;font-weight:500;color:var(--stone-ct);">Customer</div>
+      <div style="font-size:11px;color:var(--stone-lbl);">End caller</div>
+    </div>
+    <div style="background:var(--stone-chip);border-radius:8px;padding:8px;text-align:center;">
+      <div style="font-size:18px;margin-bottom:3px;">🎧</div>
+      <div style="font-size:12px;font-weight:500;color:var(--stone-ct);">L1 Agent</div>
+      <div style="font-size:11px;color:var(--stone-lbl);">Support rep</div>
+    </div>
+    <div style="background:var(--stone-chip);border-radius:8px;padding:8px;text-align:center;">
+      <div style="font-size:18px;margin-bottom:3px;">🔍</div>
+      <div style="font-size:12px;font-weight:500;color:var(--stone-ct);">QA Analyst</div>
+      <div style="font-size:11px;color:var(--stone-lbl);">Quality review</div>
+    </div>
+    <div style="background:var(--stone-chip);border-radius:8px;padding:8px;text-align:center;">
+      <div style="font-size:18px;margin-bottom:3px;">📋</div>
+      <div style="font-size:12px;font-weight:500;color:var(--stone-ct);">Supervisor</div>
+      <div style="font-size:11px;color:var(--stone-lbl);">Team lead</div>
+    </div>
+    <div style="background:var(--stone-chip);border-radius:8px;padding:8px;text-align:center;">
+      <div style="font-size:18px;margin-bottom:3px;">💼</div>
+      <div style="font-size:12px;font-weight:500;color:var(--stone-ct);">Business Leadership</div>
+      <div style="font-size:11px;color:var(--stone-lbl);">Strategic view</div>
+    </div>
+  </div>
+</div>
+<div class="panel" id="p-actors" style="background:#F4F3ED;border-color:var(--stone-bd);">
+  <button class="close-btn" onclick="tog('actors')">✕</button>
+  <div style="font-size:12px;font-weight:600;color:var(--stone-lbl);margin-bottom:8px;">Platform actors — who uses Voice Vista and why</div>
+  <div class="g5">
+    <div class="d-item" style="background:var(--stone-chip);">
+      <div class="d-title" style="color:var(--stone-ct);">Customer</div>
+      <div class="d-desc" style="color:var(--stone-lbl);">Originator of the call. Their voice is ingested via Telephony or uploaded as a recording for analysis.</div>
+    </div>
+    <div class="d-item" style="background:var(--stone-chip);">
+      <div class="d-title" style="color:var(--stone-ct);">L1 Agent</div>
+      <div class="d-desc" style="color:var(--stone-lbl);">Front-line support rep. Receives post-call quality scores and coaching recommendations from the Training Engine.</div>
+    </div>
+    <div class="d-item" style="background:var(--stone-chip);">
+      <div class="d-title" style="color:var(--stone-ct);">QA Analyst</div>
+      <div class="d-desc" style="color:var(--stone-lbl);">Reviews AI-generated audit scores, listens to flagged calls, and validates escalation detections before sign-off.</div>
+    </div>
+    <div class="d-item" style="background:var(--stone-chip);">
+      <div class="d-title" style="color:var(--stone-ct);">Supervisor</div>
+      <div class="d-desc" style="color:var(--stone-lbl);">Monitors team-level dashboards, acts on real-time escalation alerts, and reviews training gap heatmaps.</div>
+    </div>
+    <div class="d-item" style="background:var(--stone-chip);">
+      <div class="d-title" style="color:var(--stone-ct);">Business Leadership</div>
+      <div class="d-desc" style="color:var(--stone-lbl);">Accesses revenue opportunity signals, compliance reports, and the executive centralized dashboard.</div>
+    </div>
+  </div>
+  <div class="flow-row">
+    <span class="fstep" style="background:var(--stone-chip);color:var(--stone-ct);">Actor triggers / views</span>
+    <span class="fsep">→</span>
+    <span class="jlink" style="background:var(--purple-bg);border-color:var(--purple-bd);color:var(--purple-lbl);" onclick="jump('audio')">Audio Ingestion ↗</span>
+    <span class="fsep">or</span>
+    <span class="jlink" style="background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue-lbl);" onclick="jump('frontend')">Web App ↗</span>
+  </div>
+</div>
+
+<!-- pipe 1 -->
+<div class="pipe-wrap" id="pw-1" style="height:44px;">
+  <div class="pipe-col" style="flex:2;">
+    <div class="pipe-lbl">React Web App · AWS Amplify · IAM</div>
+    <div class="pipe-line" id="pl-1a"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+  <div class="pipe-col" style="flex:1;">
+    <div class="pipe-lbl">Telephony / Upload API</div>
+    <div class="pipe-line" id="pl-1b"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════ 2. FRONTEND + AUDIO ══════════════════════════ -->
+<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:8px;align-items:start;">
+
+  <div class="card" id="c-frontend" onclick="tog('frontend')"
+    style="background:var(--blue-bg);border:.5px solid var(--blue-bd);">
+    <div class="lbl" style="color:var(--blue-lbl);">Frontend</div>
+    <div class="g2" style="margin-bottom:8px;">
+      <div style="background:var(--blue-chip);border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:500;color:var(--blue-ct);">⚛️ React Web App</div>
+        <div style="font-size:11px;color:var(--blue-lbl);">Dashboard · Call replay · Reports</div>
+      </div>
+      <div style="background:var(--blue-chip);border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:500;color:var(--blue-ct);">🚀 AWS Amplify</div>
+        <div style="font-size:11px;color:var(--blue-lbl);">CI/CD · Hosting · CDN</div>
+      </div>
+    </div>
+    <div style="background:var(--blue-chip);border-radius:8px;padding:7px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--blue-ct);">🔐 AWS IAM</div>
+      <div style="font-size:11px;color:var(--blue-lbl);">Identity &amp; access management · Role-based permissions per actor</div>
+    </div>
+  </div>
+
+  <div class="card" id="c-audio" onclick="tog('audio')"
+    style="background:var(--purple-bg);border:.5px solid var(--purple-bd);">
+    <div class="lbl" style="color:var(--purple-lbl);">Audio Ingestion</div>
+    <div style="display:flex;flex-direction:column;gap:7px;">
+      <div style="background:var(--purple-chip);border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:500;color:var(--purple-ct);">📞 Telephony System</div>
+        <div style="font-size:11px;color:var(--purple-lbl);">Live call capture &amp; stream</div>
+      </div>
+      <div style="background:var(--purple-chip);border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:500;color:var(--purple-ct);">⬆️ Audio Upload API</div>
+        <div style="font-size:11px;color:var(--purple-lbl);">Async batch file ingest</div>
+      </div>
+      <div style="background:var(--purple-chip);border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:500;color:var(--purple-ct);">🪣 Call Audio Files</div>
+        <div style="font-size:11px;color:var(--purple-lbl);">Raw .wav / .mp3 on S3</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="panel" id="p-frontend" style="background:#EDF5FC;border-color:var(--blue-bd);">
+  <button class="close-btn" onclick="tog('frontend')">✕</button>
+  <div style="font-size:12px;font-weight:600;color:var(--blue-lbl);margin-bottom:8px;">Frontend — React SPA deployed via AWS Amplify</div>
+  <div class="g3">
+    <div class="d-item" style="background:var(--blue-chip);">
+      <div class="d-title" style="color:var(--blue-ct);">React Web App</div>
+      <div class="d-desc" style="color:var(--blue-lbl);">Single-page application housing the centralized dashboard, call playback, QA review, and report exports. Real-time escalation alerts via WebSocket.</div>
+    </div>
+    <div class="d-item" style="background:var(--blue-chip);">
+      <div class="d-title" style="color:var(--blue-ct);">AWS Amplify</div>
+      <div class="d-desc" style="color:var(--blue-lbl);">Manages CI/CD pipeline, global CDN hosting, and environment configs (dev / staging / prod). Auto-deploys on git push to main.</div>
+    </div>
+    <div class="d-item" style="background:var(--blue-chip);">
+      <div class="d-title" style="color:var(--blue-ct);">AWS IAM</div>
+      <div class="d-desc" style="color:var(--blue-lbl);">Enforces role-based access per actor. Agents see only their calls; QA Analysts get read-only access; Leadership sees aggregate views only.</div>
+    </div>
+  </div>
+  <div class="flow-row">
+    <span class="fstep" style="background:var(--blue-chip);color:var(--blue-ct);">User login → IAM check</span>
+    <span class="fsep">→</span>
+    <span class="jlink" style="background:var(--green-bg);border-color:var(--green-bd);color:var(--green-lbl);" onclick="jump('backend')">API Gateway ↗</span>
+    <span class="fsep">→</span>
+    <span class="jlink" style="background:var(--rose-bg);border-color:var(--rose-bd);color:var(--rose-lbl);" onclick="jump('security')">Security Monitoring ↗</span>
+  </div>
+  <div class="tags"><span class="ttag">React / TypeScript</span><span class="ttag">AWS Amplify</span><span class="ttag">AWS IAM</span><span class="ttag">WebSocket / SSE</span></div>
+</div>
+
+<div class="panel" id="p-audio" style="background:#F0ECFE;border-color:var(--purple-bd);">
+  <button class="close-btn" onclick="tog('audio')">✕</button>
+  <div style="font-size:12px;font-weight:600;color:var(--purple-lbl);margin-bottom:8px;">Audio ingestion — two ingest paths converging to S3</div>
+  <div class="g3">
+    <div class="d-item" style="background:var(--purple-chip);">
+      <div class="d-title" style="color:var(--purple-ct);">Telephony System</div>
+      <div class="d-desc" style="color:var(--purple-lbl);">Hooks into call centre telephony (SIP / PSTN). Streams live audio in real time to the ingestion layer for immediate STT processing.</div>
+    </div>
+    <div class="d-item" style="background:var(--purple-chip);">
+      <div class="d-title" style="color:var(--purple-ct);">Audio Upload API</div>
+      <div class="d-desc" style="color:var(--purple-lbl);">REST endpoint accepting .wav / .mp3 files for async batch processing. Validates format, duration, and file size before queuing to Celery.</div>
+    </div>
+    <div class="d-item" style="background:var(--purple-chip);">
+      <div class="d-title" style="color:var(--purple-ct);">Call Audio Files (S3)</div>
+      <div class="d-desc" style="color:var(--purple-lbl);">Raw audio persisted to AWS S3 with lifecycle policies. Retrieved by the STT engine. Source of truth for call replay and compliance audits.</div>
+    </div>
+  </div>
+  <div class="flow-row">
+    <span class="fstep" style="background:var(--purple-chip);color:var(--purple-ct);">Audio in</span>
+    <span class="fsep">→</span>
+    <span class="fstep" style="background:var(--purple-chip);color:var(--purple-ct);">Store to S3</span>
+    <span class="fsep">→</span>
+    <span class="jlink" style="background:var(--amber-bg);border-color:var(--amber-bd);color:var(--amber-lbl);" onclick="jump('ai')">AI &amp; Analytics ↗</span>
+  </div>
+  <div class="tags"><span class="ttag">SIP / PSTN</span><span class="ttag">AWS S3</span><span class="ttag">Multipart Upload</span><span class="ttag">FFmpeg</span><span class="ttag">Celery queue</span></div>
+</div>
+
+<!-- pipe 2 -->
+<div class="pipe-wrap" id="pw-2" style="height:44px;">
+  <div class="pipe-col" style="flex:2;">
+    <div class="pipe-lbl">HTTP / WS requests via API Gateway</div>
+    <div class="pipe-line" id="pl-2a"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+  <div class="pipe-col" style="flex:1;">
+    <div class="pipe-lbl">Audio → S3 → STT pipeline</div>
+    <div class="pipe-line" id="pl-2b"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════ 3. BACKEND ══════════════════════════ -->
+<div class="card" id="c-backend" onclick="tog('backend')"
+  style="background:var(--green-bg);border:.5px solid var(--green-bd);">
+  <div class="lbl" style="color:var(--green-lbl);">Backend</div>
+  <div class="g2">
+    <div style="background:var(--green-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--green-ct);">🐍 FastAPI on EKS</div>
+      <div style="font-size:11px;color:var(--green-lbl);">Python microservices · Kubernetes · auto-scaling pods</div>
+    </div>
+    <div style="background:var(--green-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--green-ct);">🌐 API Gateway / Ingress</div>
+      <div style="font-size:11px;color:var(--green-lbl);">TLS termination · rate limiting · JWT validation · routing</div>
+    </div>
+  </div>
+</div>
+<div class="panel" id="p-backend" style="background:#E8F9F3;border-color:var(--green-bd);">
+  <button class="close-btn" onclick="tog('backend')">✕</button>
+  <div style="font-size:12px;font-weight:600;color:var(--green-lbl);margin-bottom:8px;">Backend — FastAPI microservices on AWS EKS</div>
+  <div class="g2">
+    <div class="d-item" style="background:var(--green-chip);">
+      <div class="d-title" style="color:var(--green-ct);">FastAPI on EKS</div>
+      <div class="d-desc" style="color:var(--green-lbl);">Async REST + WebSocket API deployed as containerised microservices on Kubernetes. HPA auto-scales pods on CPU / request load. Celery + Redis handle async audio processing jobs.</div>
+    </div>
+    <div class="d-item" style="background:var(--green-chip);">
+      <div class="d-title" style="color:var(--green-ct);">API Gateway / Ingress</div>
+      <div class="d-desc" style="color:var(--green-lbl);">AWS API Gateway or NGINX Ingress as single entry point. Handles TLS, rate limiting, JWT validation, and intelligent routing to correct microservice.</div>
+    </div>
+  </div>
+  <div class="flow-row">
+    <span class="fstep" style="background:var(--blue-chip);color:var(--blue-ct);">Request from Frontend</span>
+    <span class="fsep">→</span>
+    <span class="fstep" style="background:var(--green-chip);color:var(--green-ct);">API Gateway routes</span>
+    <span class="fsep">→</span>
+    <span class="jlink" style="background:var(--amber-bg);border-color:var(--amber-bd);color:var(--amber-lbl);" onclick="jump('ai')">AI &amp; Analytics ↗</span>
+    <span class="fsep">/</span>
+    <span class="jlink" style="background:var(--red-bg);border-color:var(--red-bd);color:var(--red-lbl);" onclick="jump('processing')">Processing Engines ↗</span>
+  </div>
+  <div class="tags"><span class="ttag">FastAPI</span><span class="ttag">Python 3.11</span><span class="ttag">AWS EKS</span><span class="ttag">Celery / Redis</span><span class="ttag">Docker</span><span class="ttag">AWS API Gateway</span></div>
+</div>
+
+<!-- pipe 3 -->
+<div class="pipe-wrap" id="pw-3" style="height:44px;">
+  <div class="pipe-col" style="flex:1.5;">
+    <div class="pipe-lbl">Audio routed to STT engine</div>
+    <div class="pipe-line" id="pl-3a"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+  <div class="pipe-col" style="flex:1;">
+    <div class="pipe-lbl">Transcript to NLP pipeline</div>
+    <div class="pipe-line" id="pl-3b"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+  <div class="pipe-col" style="flex:1;">
+    <div class="pipe-lbl">Enriched text to LLM</div>
+    <div class="pipe-line" id="pl-3c"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+</div>
+
+<div class="phase-divider">
+  <div class="phase-line"></div>
+  <span class="phase-badge" style="background:var(--amber-bg);color:var(--amber-lbl);border:1px solid var(--amber-bd);">⚙ AI Processing Layer</span>
+  <div class="phase-line"></div>
+</div>
+<div style="height:6px;"></div>
+
+
+<!-- ══════════════════════════ 4. AI & ANALYTICS ══════════════════════════ -->
+<div class="card" id="c-ai" onclick="tog('ai')"
+  style="background:var(--amber-bg);border:.5px solid var(--amber-bd);">
+  <div class="lbl" style="color:var(--amber-lbl);">AI &amp; Analytics</div>
+  <div class="g3">
+    <div style="background:var(--amber-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--amber-ct);">🎙️ Speech-to-Text</div>
+      <div style="font-size:11px;color:var(--amber-lbl);">Transcription · diarization · timestamps</div>
+    </div>
+    <div style="background:var(--amber-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--amber-ct);">🧠 Text Analytics</div>
+      <div style="font-size:11px;color:var(--amber-lbl);">Sentiment · NER · intent classification</div>
+    </div>
+    <div style="background:var(--amber-chip);border-radius:8px;padding:8px 10px;border:1px dashed var(--amber-bd);">
+      <div style="font-size:12px;font-weight:500;color:var(--amber-ct);">🤖 Azure OpenAI</div>
+      <div style="font-size:11px;color:var(--amber-lbl);">GPT-4o · insight generation · scoring</div>
+    </div>
+  </div>
+</div>
+<div class="panel" id="p-ai" style="background:#FEF7EB;border-color:var(--amber-bd);">
+  <button class="close-btn" onclick="tog('ai')">✕</button>
+  <div style="font-size:12px;font-weight:600;color:var(--amber-lbl);margin-bottom:8px;">AI &amp; Analytics — three-stage intelligence pipeline</div>
+  <div class="g3">
+    <div class="d-item" style="background:var(--amber-chip);">
+      <div class="d-title" style="color:var(--amber-ct);">Speech-to-Text (STT)</div>
+      <div class="d-desc" style="color:var(--amber-lbl);">Converts raw call audio to time-stamped transcripts. Speaker diarization separates agent vs customer turns. Supports multiple accents and languages via Azure Speech SDK.</div>
+    </div>
+    <div class="d-item" style="background:var(--amber-chip);">
+      <div class="d-title" style="color:var(--amber-ct);">Text Analytics (NLP)</div>
+      <div class="d-desc" style="color:var(--amber-lbl);">Runs NLP pipeline on transcripts: sentiment scoring per sentence, named entity recognition, topic classification, and intent extraction for downstream engines.</div>
+    </div>
+    <div class="d-item" style="background:var(--amber-chip);">
+      <div class="d-title" style="color:var(--amber-ct);">Azure OpenAI (GPT-4o)</div>
+      <div class="d-desc" style="color:var(--amber-lbl);">LLM backbone for generative tasks — quality audit scoring, escalation risk explanation, revenue opportunity identification, and personalised training recommendations.</div>
+    </div>
+  </div>
+  <div class="flow-row">
+    <span class="fstep" style="background:var(--purple-chip);color:var(--purple-ct);">Audio → STT</span>
+    <span class="fsep">→</span>
+    <span class="fstep" style="background:var(--amber-chip);color:var(--amber-ct);">Transcript → NLP</span>
+    <span class="fsep">→</span>
+    <span class="fstep" style="background:var(--amber-chip);color:var(--amber-ct);">Enriched text → GPT-4o</span>
+    <span class="fsep">→</span>
+    <span class="jlink" style="background:var(--red-bg);border-color:var(--red-bd);color:var(--red-lbl);" onclick="jump('processing')">Processing Engines ↗</span>
+  </div>
+  <div class="tags"><span class="ttag">Azure Speech SDK</span><span class="ttag">spaCy / Transformers</span><span class="ttag">Azure OpenAI GPT-4o</span><span class="ttag">LangChain</span><span class="ttag">FastAPI async</span></div>
+</div>
+
+<!-- pipe 4 -->
+<div class="pipe-wrap" id="pw-4" style="height:38px;">
+  <div class="pipe-col">
+    <div class="pipe-lbl">Structured insights → processing engines</div>
+    <div class="pipe-line" id="pl-4"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════ 5. PROCESSING ENGINES ══════════════════════════ -->
+<div class="card" id="c-processing" onclick="tog('processing')"
+  style="background:var(--red-bg);border:.5px solid var(--red-bd);">
+  <div class="lbl" style="color:var(--red-lbl);">Processing Engines</div>
+
+  <!-- four main engines -->
+  <div class="g4" style="margin-bottom:10px;">
+    <div style="background:var(--red-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--red-ct);">✅ Quality Audit Engine</div>
+      <div style="font-size:11px;color:var(--red-lbl);">Scorecard · compliance · SLA</div>
+    </div>
+    <div style="background:var(--red-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--red-ct);">⚠️ Escalation &amp; Risk Detection</div>
+      <div style="font-size:11px;color:var(--red-lbl);">Real-time flags · risk scoring</div>
+    </div>
+    <div style="background:var(--red-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--red-ct);">📈 Upsell &amp; Revenue Engine</div>
+      <div style="font-size:11px;color:var(--red-lbl);">Opportunity detection · propensity</div>
+    </div>
+    <div style="background:var(--red-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--red-ct);">📖 Training Recommendation</div>
+      <div style="font-size:11px;color:var(--red-lbl);">Skill gap analysis · coaching paths</div>
+    </div>
+  </div>
+
+  <!-- persona config sub-row -->
+  <div style="border-top:1px dashed rgba(153,60,29,.25);padding-top:9px;">
+    <div style="font-size:9.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--red-lbl);margin-bottom:7px;">⚙ Persona Configurations — signal detectors applied per engine</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      <div style="background:rgba(255,255,255,.55);border:1px solid var(--red-bd);border-radius:6px;padding:5px 10px;display:flex;align-items:center;gap:6px;">
+        <span style="font-size:13px;">😐</span>
+        <div><div style="font-size:11px;font-weight:600;color:var(--red-ct);">Tonality</div><div style="font-size:10px;color:var(--red-lbl);">Aggressive · Calm · Assertive</div></div>
+      </div>
+      <div style="background:rgba(255,255,255,.55);border:1px solid var(--red-bd);border-radius:6px;padding:5px 10px;display:flex;align-items:center;gap:6px;">
+        <span style="font-size:13px;">🎭</span>
+        <div><div style="font-size:11px;font-weight:600;color:var(--red-ct);">Emotions</div><div style="font-size:10px;color:var(--red-lbl);">Frustrated · Happy · Anxious</div></div>
+      </div>
+      <div style="background:rgba(255,255,255,.55);border:1px solid var(--red-bd);border-radius:6px;padding:5px 10px;display:flex;align-items:center;gap:6px;">
+        <span style="font-size:13px;">📊</span>
+        <div><div style="font-size:11px;font-weight:600;color:var(--red-ct);">Sentiment</div><div style="font-size:10px;color:var(--red-lbl);">Positive · Negative · Neutral</div></div>
+      </div>
+      <div style="background:rgba(255,255,255,.55);border:1px solid var(--red-bd);border-radius:6px;padding:5px 10px;display:flex;align-items:center;gap:6px;">
+        <span style="font-size:13px;">😏</span>
+        <div><div style="font-size:11px;font-weight:600;color:var(--red-ct);">Sarcasm</div><div style="font-size:10px;color:var(--red-lbl);">Detected · Flagged · Scored</div></div>
+      </div>
+      <div style="background:rgba(255,255,255,.55);border:1px solid var(--red-bd);border-radius:6px;padding:5px 10px;display:flex;align-items:center;gap:6px;">
+        <span style="font-size:13px;">🗣️</span>
+        <div><div style="font-size:11px;font-weight:600;color:var(--red-ct);">Urgency</div><div style="font-size:10px;color:var(--red-lbl);">Critical · High · Low</div></div>
+      </div>
+      <div style="background:rgba(255,255,255,.55);border:1px solid var(--red-bd);border-radius:6px;padding:5px 10px;display:flex;align-items:center;gap:6px;">
+        <span style="font-size:13px;">🤝</span>
+        <div><div style="font-size:11px;font-weight:600;color:var(--red-ct);">Empathy Level</div><div style="font-size:10px;color:var(--red-lbl);">High · Moderate · Low</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="panel" id="p-processing" style="background:#FEF0EB;border-color:var(--red-bd);">
+  <button class="close-btn" onclick="tog('processing')">✕</button>
+  <div style="font-size:12px;font-weight:600;color:var(--red-lbl);margin-bottom:8px;">Processing engines — four parallel AI-powered analysis modules + configurable persona signals</div>
+
+  <!-- four engines -->
+  <div class="g4" style="margin-bottom:10px;">
+    <div class="d-item" style="background:var(--red-chip);">
+      <div class="d-title" style="color:var(--red-ct);">Quality Audit Engine</div>
+      <div class="d-desc" style="color:var(--red-lbl);">Auto-generates quality scorecards per call. Checks adherence to scripts, compliance clauses, and SLA thresholds. Score stored in RDS for QA Analyst review and override.</div>
+    </div>
+    <div class="d-item" style="background:var(--red-chip);">
+      <div class="d-title" style="color:var(--red-ct);">Escalation &amp; Risk Detection</div>
+      <div class="d-desc" style="color:var(--red-lbl);">Detects high-risk sentiment spikes, regulatory trigger phrases, and legal red flags in real time. Fires alerts immediately to Supervisors via the Notification layer.</div>
+    </div>
+    <div class="d-item" style="background:var(--red-chip);">
+      <div class="d-title" style="color:var(--red-ct);">Upsell &amp; Revenue Engine</div>
+      <div class="d-desc" style="color:var(--red-lbl);">Identifies call moments with upsell opportunity signals — positive sentiment, product mentions, buying intent. Surfaces ranked revenue insights on the dashboard.</div>
+    </div>
+    <div class="d-item" style="background:var(--red-chip);">
+      <div class="d-title" style="color:var(--red-ct);">Training Recommendation Engine</div>
+      <div class="d-desc" style="color:var(--red-lbl);">Analyses agent performance trends across calls. Identifies skill gaps and generates personalised coaching paths surfaced to Supervisors on the dashboard.</div>
+    </div>
+  </div>
+
+  <!-- persona configurations -->
+  <div style="background:rgba(153,60,29,.07);border:1px dashed var(--red-bd);border-radius:9px;padding:11px 13px;margin-bottom:8px;">
+    <div style="font-size:11px;font-weight:600;color:var(--red-lbl);margin-bottom:9px;">⚙ Persona Configurations — pluggable signal detectors that feed every engine above</div>
+    <div class="g3">
+      <div class="d-item" style="background:rgba(255,255,255,.6);border:1px solid var(--red-bd);">
+        <div class="d-title" style="color:var(--red-ct);">😐 Tonality Detector</div>
+        <div class="d-desc" style="color:var(--red-lbl);">Classifies the overall vocal tone of each speaker turn — Aggressive, Calm, Assertive, Defensive, or Neutral. Drives quality scoring weights and escalation sensitivity thresholds.</div>
+      </div>
+      <div class="d-item" style="background:rgba(255,255,255,.6);border:1px solid var(--red-bd);">
+        <div class="d-title" style="color:var(--red-ct);">🎭 Emotion Recognition</div>
+        <div class="d-desc" style="color:var(--red-lbl);">Multi-label emotion tagging per utterance — Frustrated, Happy, Anxious, Confused, Satisfied. Layered on top of STT output using fine-tuned transformer models.</div>
+      </div>
+      <div class="d-item" style="background:rgba(255,255,255,.6);border:1px solid var(--red-bd);">
+        <div class="d-title" style="color:var(--red-ct);">📊 Sentiment Scoring</div>
+        <div class="d-desc" style="color:var(--red-lbl);">Sentence-level and turn-level sentiment (Positive / Negative / Neutral) with polarity scores. Tracks sentiment arc across the call to detect satisfaction trends and inflection points.</div>
+      </div>
+      <div class="d-item" style="background:rgba(255,255,255,.6);border:1px solid var(--red-bd);">
+        <div class="d-title" style="color:var(--red-ct);">😏 Sarcasm Detection</div>
+        <div class="d-desc" style="color:var(--red-lbl);">Identifies sarcastic or passive-aggressive phrasing using contextual LLM inference. Flags calls where surface-level sentiment contradicts the emotional subtext for QA review.</div>
+      </div>
+      <div class="d-item" style="background:rgba(255,255,255,.6);border:1px solid var(--red-bd);">
+        <div class="d-title" style="color:var(--red-ct);">🗣️ Urgency Signal</div>
+        <div class="d-desc" style="color:var(--red-lbl);">Rates customer urgency (Critical / High / Low) based on speech rate, keyword density, and emotional intensity. Directly feeds the Escalation engine's routing decision.</div>
+      </div>
+      <div class="d-item" style="background:rgba(255,255,255,.6);border:1px solid var(--red-bd);">
+        <div class="d-title" style="color:var(--red-ct);">🤝 Empathy Level</div>
+        <div class="d-desc" style="color:var(--red-lbl);">Scores agent empathy expression per interaction — acknowledgement phrases, active listening cues, and validating language. Key metric for Training Recommendation and quality audit.</div>
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:10.5px;color:var(--red-lbl);padding:6px 9px;background:rgba(255,255,255,.5);border-radius:6px;">
+      💡 <strong>Config pattern:</strong> Each persona signal is a independently toggleable detector. Supervisors &amp; QA Analysts configure which signals are active per campaign or call type — the selected set is injected as a context persona into the GPT-4o prompt, shaping how each engine interprets and weights its output.
+    </div>
+  </div>
+
+  <div class="flow-row">
+    <span class="fstep" style="background:var(--amber-chip);color:var(--amber-ct);">Insights from AI layer</span>
+    <span class="fsep">→</span>
+    <span class="fstep" style="background:rgba(153,60,29,.15);color:var(--red-ct);">Persona signals applied</span>
+    <span class="fsep">→</span>
+    <span class="fstep" style="background:var(--red-chip);color:var(--red-ct);">4 engines run in parallel</span>
+    <span class="fsep">→</span>
+    <span class="jlink" style="background:var(--teal-bg);border-color:var(--teal-bd);color:var(--teal-lbl);" onclick="jump('storage')">Store results ↗</span>
+    <span class="fsep">&amp;</span>
+    <span class="jlink" style="background:var(--sage-bg);border-color:var(--sage-bd);color:var(--sage-lbl);" onclick="jump('notifications')">Send alerts ↗</span>
+    <span class="fsep">&amp;</span>
+    <span class="jlink" style="background:var(--indigo-bg);border-color:var(--indigo-bd);color:var(--indigo-lbl);" onclick="jump('dashboard')">Dashboard ↗</span>
+  </div>
+  <div class="tags"><span class="ttag">LangGraph</span><span class="ttag">Azure OpenAI GPT-4o</span><span class="ttag">Transformer classifiers</span><span class="ttag">FastAPI workers</span><span class="ttag">Celery async</span><span class="ttag">Redis queue</span><span class="ttag">Persona config store (RDS)</span></div>
+</div>
+
+<!-- pipe 5 -->
+<div class="pipe-wrap" id="pw-5" style="height:44px;">
+  <div class="pipe-col" style="flex:1.5;">
+    <div class="pipe-lbl">Store transcripts &amp; results</div>
+    <div class="pipe-line" id="pl-5a"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+  <div class="pipe-col" style="flex:1;">
+    <div class="pipe-lbl">Send escalation alerts</div>
+    <div class="pipe-line" id="pl-5b"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+  <div class="pipe-col" style="flex:1.2;">
+    <div class="pipe-lbl">Analytics results → dashboard</div>
+    <div class="pipe-line" id="pl-5c"></div>
+    <div class="pipe-arrow">↓</div>
+  </div>
+</div>
+
+<div class="phase-divider">
+  <div class="phase-line"></div>
+  <span class="phase-badge" style="background:var(--teal-bg);color:var(--teal-lbl);border:1px solid var(--teal-bd);">📦 Storage, Delivery &amp; Reporting Layer</span>
+  <div class="phase-line"></div>
+</div>
+<div style="height:6px;"></div>
+
+
+<!-- ══════════════════════════ 6. STORAGE + NOTIFICATIONS + DASHBOARD ══════════════════════════ -->
+<div style="display:grid;grid-template-columns:1.1fr 1fr 1.6fr;gap:8px;align-items:start;">
+
+  <div class="card" id="c-storage" onclick="tog('storage')"
+    style="background:var(--teal-bg);border:.5px solid var(--teal-bd);">
+    <div class="lbl" style="color:var(--teal-lbl);">Data Storage</div>
+    <div style="display:flex;flex-direction:column;gap:7px;">
+      <div style="background:var(--teal-chip);border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:500;color:var(--teal-ct);">🪣 AWS S3</div>
+        <div style="font-size:11px;color:var(--teal-lbl);">Audio files · raw transcripts</div>
+      </div>
+      <div style="background:var(--teal-chip);border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:500;color:var(--teal-ct);">⚡ AWS DynamoDB</div>
+        <div style="font-size:11px;color:var(--teal-lbl);">NoSQL · real-time event store</div>
+      </div>
+      <div style="background:var(--teal-chip);border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:500;color:var(--teal-ct);">🐘 AWS RDS</div>
+        <div style="font-size:11px;color:var(--teal-lbl);">PostgreSQL · audit records · scores</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="c-notifications" onclick="tog('notifications')"
+    style="background:var(--sage-bg);border:.5px solid var(--sage-bd);">
+    <div class="lbl" style="color:var(--sage-lbl);">Notifications</div>
+    <div style="display:flex;flex-direction:column;gap:7px;">
+      <div style="background:var(--sage-chip);border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:500;color:var(--sage-ct);">📧 Escalation Notifications</div>
+        <div style="font-size:11px;color:var(--sage-lbl);">Email · in-app · push alerts</div>
+      </div>
+      <div style="background:var(--sage-chip);border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:500;color:var(--sage-ct);">📡 AWS Communication Services</div>
+        <div style="font-size:11px;color:var(--sage-lbl);">SNS · SES · SMS gateway</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="c-dashboard" onclick="tog('dashboard')"
+    style="background:var(--indigo-bg);border:.5px solid var(--indigo-bd);">
+    <div class="lbl" style="color:var(--indigo-lbl);">Dashboard &amp; Reporting</div>
+    <div class="g3">
+      <div style="background:var(--indigo-chip);border-radius:8px;padding:7px;text-align:center;">
+        <div style="font-size:15px;">📞</div>
+        <div style="font-size:11px;font-weight:500;color:var(--indigo-ct);">Call Insights</div>
+      </div>
+      <div style="background:var(--indigo-chip);border-radius:8px;padding:7px;text-align:center;">
+        <div style="font-size:15px;">✅</div>
+        <div style="font-size:11px;font-weight:500;color:var(--indigo-ct);">Audit Scores</div>
+      </div>
+      <div style="background:var(--indigo-chip);border-radius:8px;padding:7px;text-align:center;">
+        <div style="font-size:15px;">🖥️</div>
+        <div style="font-size:11px;font-weight:500;color:var(--indigo-ct);">Centralized Dashboard</div>
+      </div>
+      <div style="background:var(--indigo-chip);border-radius:8px;padding:7px;text-align:center;">
+        <div style="font-size:15px;">⚠️</div>
+        <div style="font-size:11px;font-weight:500;color:var(--indigo-ct);">Escalations</div>
+      </div>
+      <div style="background:var(--indigo-chip);border-radius:8px;padding:7px;text-align:center;">
+        <div style="font-size:15px;">📚</div>
+        <div style="font-size:11px;font-weight:500;color:var(--indigo-ct);">Training Gaps</div>
+      </div>
+      <div style="background:var(--indigo-chip);border-radius:8px;padding:7px;text-align:center;">
+        <div style="font-size:15px;">💰</div>
+        <div style="font-size:11px;font-weight:500;color:var(--indigo-ct);">Revenue Opportunities</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="panel" id="p-storage" style="background:#E3F7FA;border-color:var(--teal-bd);">
+  <button class="close-btn" onclick="tog('storage')">✕</button>
+  <div style="font-size:12px;font-weight:600;color:var(--teal-lbl);margin-bottom:8px;">Data Storage — three-tier persistence strategy</div>
+  <div class="g3">
+    <div class="d-item" style="background:var(--teal-chip);">
+      <div class="d-title" style="color:var(--teal-ct);">AWS S3</div>
+      <div class="d-desc" style="color:var(--teal-lbl);">Object store for raw audio files and full-length transcripts. Lifecycle policies auto-archive cold data. Versioned for compliance retention requirements.</div>
+    </div>
+    <div class="d-item" style="background:var(--teal-chip);">
+      <div class="d-title" style="color:var(--teal-ct);">AWS DynamoDB</div>
+      <div class="d-desc" style="color:var(--teal-lbl);">Low-latency NoSQL for real-time event streams — alert states, live call metadata, agent status. Single-digit ms reads for dashboard real-time feeds.</div>
+    </div>
+    <div class="d-item" style="background:var(--teal-chip);">
+      <div class="d-title" style="color:var(--teal-ct);">AWS RDS (PostgreSQL)</div>
+      <div class="d-desc" style="color:var(--teal-lbl);">Relational store for structured audit records, QA scores, call metadata, agent profiles, and aggregated analytics consumed by the Dashboard layer.</div>
+    </div>
+  </div>
+  <div class="tags"><span class="ttag">AWS S3</span><span class="ttag">AWS DynamoDB</span><span class="ttag">AWS RDS PostgreSQL</span><span class="ttag">SQLAlchemy ORM</span></div>
+</div>
+
+<div class="panel" id="p-notifications" style="background:#EBF8E4;border-color:var(--sage-bd);">
+  <button class="close-btn" onclick="tog('notifications')">✕</button>
+  <div style="font-size:12px;font-weight:600;color:var(--sage-lbl);margin-bottom:8px;">Notifications — multi-channel alert delivery</div>
+  <div class="g2">
+    <div class="d-item" style="background:var(--sage-chip);">
+      <div class="d-title" style="color:var(--sage-ct);">Escalation Notifications</div>
+      <div class="d-desc" style="color:var(--sage-lbl);">Triggered by the Escalation &amp; Risk Detection engine. Sent to Supervisors immediately via email, in-app toast, and mobile push. Includes call ID, transcript snippet, and risk reason.</div>
+    </div>
+    <div class="d-item" style="background:var(--sage-chip);">
+      <div class="d-title" style="color:var(--sage-ct);">AWS Communication Services</div>
+      <div class="d-desc" style="color:var(--sage-lbl);">AWS SNS for fan-out pub/sub, SES for transactional email, and SMS gateway for urgent text alerts. Configurable per actor role and severity level.</div>
+    </div>
+  </div>
+  <div class="flow-row">
+    <span class="fstep" style="background:var(--red-chip);color:var(--red-ct);">Risk detected</span>
+    <span class="fsep">→</span>
+    <span class="fstep" style="background:var(--sage-chip);color:var(--sage-ct);">SNS → SES / SMS / Push</span>
+    <span class="fsep">→</span>
+    <span class="jlink" style="background:var(--stone-bg);border-color:var(--stone-bd);color:var(--stone-lbl);" onclick="jump('actors')">Supervisor / Leadership ↗</span>
+  </div>
+  <div class="tags"><span class="ttag">AWS SNS</span><span class="ttag">AWS SES</span><span class="ttag">SMS Gateway</span><span class="ttag">WebSocket push</span></div>
+</div>
+
+<div class="panel" id="p-dashboard" style="background:#EEF0FD;border-color:var(--indigo-bd);">
+  <button class="close-btn" onclick="tog('dashboard')">✕</button>
+  <div style="font-size:12px;font-weight:600;color:var(--indigo-lbl);margin-bottom:8px;">Dashboard &amp; Reporting — six insight views surfaced to actors</div>
+  <div class="g3">
+    <div class="d-item" style="background:var(--indigo-chip);">
+      <div class="d-title" style="color:var(--indigo-ct);">Call Insights</div>
+      <div class="d-desc" style="color:var(--indigo-lbl);">Per-call breakdown: duration, sentiment arc, topics discussed, agent talk ratio, silence periods, and key moments.</div>
+    </div>
+    <div class="d-item" style="background:var(--indigo-chip);">
+      <div class="d-title" style="color:var(--indigo-ct);">Audit Scores</div>
+      <div class="d-desc" style="color:var(--indigo-lbl);">AI-generated quality scorecard with pass/fail per criterion. QA Analysts can override scores and add review comments.</div>
+    </div>
+    <div class="d-item" style="background:var(--indigo-chip);">
+      <div class="d-title" style="color:var(--indigo-ct);">Centralized Dashboard</div>
+      <div class="d-desc" style="color:var(--indigo-lbl);">Executive-level aggregated view across teams and date ranges — call volumes, avg scores, escalation rates, and SLA trends.</div>
+    </div>
+    <div class="d-item" style="background:var(--indigo-chip);">
+      <div class="d-title" style="color:var(--indigo-ct);">Escalations</div>
+      <div class="d-desc" style="color:var(--indigo-lbl);">Live feed and historical log of escalation events. Linked to call recordings and agent profiles for direct action.</div>
+    </div>
+    <div class="d-item" style="background:var(--indigo-chip);">
+      <div class="d-title" style="color:var(--indigo-ct);">Training Gaps</div>
+      <div class="d-desc" style="color:var(--indigo-lbl);">Aggregated skill gap heatmap by agent and team. Drill-down to specific calls that demonstrate the identified weakness.</div>
+    </div>
+    <div class="d-item" style="background:var(--indigo-chip);">
+      <div class="d-title" style="color:var(--indigo-ct);">Revenue Opportunities</div>
+      <div class="d-desc" style="color:var(--indigo-lbl);">List of calls flagged with upsell signals, ranked by propensity score. Exportable for sales team follow-up actions.</div>
+    </div>
+  </div>
+  <div class="flow-row">
+    <span class="fstep" style="background:var(--teal-chip);color:var(--teal-ct);">Query RDS / DynamoDB</span>
+    <span class="fsep">→</span>
+    <span class="fstep" style="background:var(--indigo-chip);color:var(--indigo-ct);">Render in React Web App</span>
+    <span class="fsep">→</span>
+    <span class="jlink" style="background:var(--stone-bg);border-color:var(--stone-bd);color:var(--stone-lbl);" onclick="jump('actors')">Actors view dashboards ↗</span>
+  </div>
+  <div class="tags"><span class="ttag">React Charts</span><span class="ttag">AWS RDS queries</span><span class="ttag">DynamoDB streams</span><span class="ttag">Export CSV / PDF</span></div>
+</div>
+
+
+<!-- ══════════════════════════ 7. SECURITY (cross-cutting) ══════════════════════════ -->
+<div style="height:8px;"></div>
+<div class="phase-divider">
+  <div class="phase-line"></div>
+  <span class="phase-badge" style="background:var(--rose-bg);color:var(--rose-lbl);border:1px solid var(--rose-bd);">🔒 Security &amp; Observability (cross-cutting)</span>
+  <div class="phase-line"></div>
+</div>
+<div style="height:6px;"></div>
+
+<div class="card" id="c-security" onclick="tog('security')"
+  style="background:var(--rose-bg);border:.5px solid var(--rose-bd);">
+  <div class="lbl" style="color:var(--rose-lbl);">Security Monitoring</div>
+  <div class="g4">
+    <div style="background:var(--rose-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--rose-ct);">💡 Application Insights</div>
+      <div style="font-size:11px;color:var(--rose-lbl);">APM · traces · performance metrics</div>
+    </div>
+    <div style="background:var(--rose-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--rose-ct);">🔑 AWS Secrets Manager</div>
+      <div style="font-size:11px;color:var(--rose-lbl);">API keys · DB creds · auto-rotation</div>
+    </div>
+    <div style="background:var(--rose-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--rose-ct);">☁️ AWS CloudWatch</div>
+      <div style="font-size:11px;color:var(--rose-lbl);">Logs · metrics · alarms · dashboards</div>
+    </div>
+    <div style="background:var(--rose-chip);border-radius:8px;padding:8px 10px;">
+      <div style="font-size:12px;font-weight:500;color:var(--rose-ct);">🔒 Role-Based Access Control</div>
+      <div style="font-size:11px;color:var(--rose-lbl);">IAM policies · least-privilege enforcement</div>
+    </div>
+  </div>
+</div>
+<div class="panel" id="p-security" style="background:#FEE8F1;border-color:var(--rose-bd);">
+  <button class="close-btn" onclick="tog('security')">✕</button>
+  <div style="font-size:12px;font-weight:600;color:var(--rose-lbl);margin-bottom:8px;">Security monitoring — cross-cutting concerns across all layers</div>
+  <div class="g4">
+    <div class="d-item" style="background:var(--rose-chip);">
+      <div class="d-title" style="color:var(--rose-ct);">Application Insights</div>
+      <div class="d-desc" style="color:var(--rose-lbl);">APM tracing for all FastAPI services. Tracks request latency, error rates, and dependency calls. Feeds CloudWatch for unified observability across the platform.</div>
+    </div>
+    <div class="d-item" style="background:var(--rose-chip);">
+      <div class="d-title" style="color:var(--rose-ct);">AWS Secrets Manager</div>
+      <div class="d-desc" style="color:var(--rose-lbl);">Centralised vault for API keys, database credentials, and third-party tokens. Automatic rotation. Zero hard-coded secrets in code or environment files.</div>
+    </div>
+    <div class="d-item" style="background:var(--rose-chip);">
+      <div class="d-title" style="color:var(--rose-ct);">AWS CloudWatch</div>
+      <div class="d-desc" style="color:var(--rose-lbl);">Aggregates logs and metrics from EKS pods, RDS, and DynamoDB. Alarm triggers for anomaly detection, pod crash loops, and budget overruns.</div>
+    </div>
+    <div class="d-item" style="background:var(--rose-chip);">
+      <div class="d-title" style="color:var(--rose-ct);">Role-Based Access Control</div>
+      <div class="d-desc" style="color:var(--rose-lbl);">IAM roles enforce least-privilege per actor. Agents can't see each other's data; QA Analysts have read-only call access; Leadership sees aggregate views only.</div>
+    </div>
+  </div>
+  <div class="flow-row">
+    <span style="font-size:11px;color:var(--text-secondary);margin-right:4px;">Monitors:</span>
+    <span class="jlink" style="background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue-lbl);" onclick="jump('frontend')">Frontend ↗</span>
+    <span class="jlink" style="background:var(--green-bg);border-color:var(--green-bd);color:var(--green-lbl);" onclick="jump('backend')">Backend ↗</span>
+    <span class="jlink" style="background:var(--amber-bg);border-color:var(--amber-bd);color:var(--amber-lbl);" onclick="jump('ai')">AI Layer ↗</span>
+    <span class="jlink" style="background:var(--red-bg);border-color:var(--red-bd);color:var(--red-lbl);" onclick="jump('processing')">Processing ↗</span>
+    <span class="jlink" style="background:var(--teal-bg);border-color:var(--teal-bd);color:var(--teal-lbl);" onclick="jump('storage')">Storage ↗</span>
+  </div>
+  <div class="tags"><span class="ttag">AWS CloudWatch</span><span class="ttag">AWS Secrets Manager</span><span class="ttag">Application Insights</span><span class="ttag">IAM Policies</span><span class="ttag">AWS GuardDuty</span></div>
+</div>
+
+
+<!-- ══════════════════════════ LEGEND ══════════════════════════ -->
+<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:20px;padding-top:14px;border-top:.5px solid var(--border-light);">
+  <div style="display:flex;align-items:center;gap:6px;"><span class="dot" style="background:#888780;"></span><span style="font-size:11px;color:var(--text-secondary);">Actors</span></div>
+  <div style="display:flex;align-items:center;gap:6px;"><span class="dot" style="background:#378ADD;"></span><span style="font-size:11px;color:var(--text-secondary);">Frontend</span></div>
+  <div style="display:flex;align-items:center;gap:6px;"><span class="dot" style="background:#7F77DD;"></span><span style="font-size:11px;color:var(--text-secondary);">Audio Ingestion</span></div>
+  <div style="display:flex;align-items:center;gap:6px;"><span class="dot" style="background:#1D9E75;"></span><span style="font-size:11px;color:var(--text-secondary);">Backend</span></div>
+  <div style="display:flex;align-items:center;gap:6px;"><span class="dot" style="background:#EF9F27;"></span><span style="font-size:11px;color:var(--text-secondary);">AI &amp; Analytics</span></div>
+  <div style="display:flex;align-items:center;gap:6px;"><span class="dot" style="background:#F0997B;"></span><span style="font-size:11px;color:var(--text-secondary);">Processing Engines</span></div>
+  <div style="display:flex;align-items:center;gap:6px;"><span class="dot" style="background:#4BBDCC;"></span><span style="font-size:11px;color:var(--text-secondary);">Data Storage</span></div>
+  <div style="display:flex;align-items:center;gap:6px;"><span class="dot" style="background:#97C459;"></span><span style="font-size:11px;color:var(--text-secondary);">Notifications</span></div>
+  <div style="display:flex;align-items:center;gap:6px;"><span class="dot" style="background:#8B92E0;"></span><span style="font-size:11px;color:var(--text-secondary);">Dashboard &amp; Reporting</span></div>
+  <div style="display:flex;align-items:center;gap:6px;"><span class="dot" style="background:#E879A0;"></span><span style="font-size:11px;color:var(--text-secondary);">Security Monitoring</span></div>
+  <div style="margin-left:auto;font-size:11px;color:var(--text-tertiary);">Click any layer to expand · Jump links connect related layers</div>
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+const open = new Set();
+
+const pipes = {
+  actors:        ['pl-1a','pl-1b'],
+  frontend:      ['pl-1a','pl-2a'],
+  audio:         ['pl-1b','pl-2b'],
+  backend:       ['pl-2a','pl-3a','pl-3b','pl-3c'],
+  ai:            ['pl-3a','pl-3b','pl-3c','pl-4'],
+  processing:    ['pl-4','pl-5a','pl-5b','pl-5c'],
+  storage:       ['pl-5a'],
+  notifications: ['pl-5b'],
+  dashboard:     ['pl-5c'],
+  security:      [],
+};
+
+function tog(id) {
+  const panel = document.getElementById('p-' + id);
+  const card  = document.getElementById('c-' + id);
+  if (!panel) return;
+  const isOpen = panel.classList.contains('open');
+  if (isOpen) {
+    panel.classList.remove('open');
+    if (card) card.classList.remove('active');
+    open.delete(id);
+  } else {
+    panel.classList.add('open');
+    if (card) card.classList.add('active');
+    open.add(id);
+  }
+  refreshPipes();
+}
+
+function refreshPipes() {
+  document.querySelectorAll('.pipe-line').forEach(p => p.classList.remove('lit'));
+  open.forEach(id => {
+    (pipes[id] || []).forEach(pid => {
+      const el = document.getElementById(pid);
+      if (el) el.classList.add('lit');
+    });
+  });
+}
+
+function jump(id) {
+  const card = document.getElementById('c-' + id);
+  if (!card) return;
+  card.scrollIntoView({ behavior:'smooth', block:'center' });
+  const panel = document.getElementById('p-' + id);
+  if (panel && !panel.classList.contains('open')) tog(id);
+  card.style.outline = '2.5px solid #534AB7';
+  card.style.outlineOffset = '2px';
+  setTimeout(() => { card.style.outline = ''; card.style.outlineOffset = ''; }, 900);
+}
+</script>
+</body>
+</html>
